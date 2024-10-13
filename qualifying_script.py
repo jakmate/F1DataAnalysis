@@ -2,7 +2,6 @@
 # Load imports
 import pandas as pd
 import matplotlib.pyplot as plt
-import numpy as np
 from utils import getFiles, getConstructorColours, convert_to_time_format, convert_lap_time_to_milliseconds
 
 # %%

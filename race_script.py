@@ -2,9 +2,8 @@
 # Load imports
 import pandas as pd
 import matplotlib.pyplot as plt
-import numpy as np
 import seaborn as sns
-from utils import getFiles, getConstructorColours, format_minutes
+from utils import getFiles, getConstructorColours, format_minutes, convert_to_time_format
 from matplotlib.ticker import FuncFormatter
 
 # %%
@@ -42,3 +41,26 @@ def getLapTimes(grand_prix_name, year):
     # Convert lap times to minutes
     bahrain_gp['lap_time_minutes'] = bahrain_gp['milliseconds'] / 60000
     return bahrain_gp
+
+def removePitstopLaps(lap_times, pit_stops):
+    merged_df = pd.merge(lap_times, pit_stops[['raceId', 'driverId', 'lap']], on=['raceId', 'driverId', 'lap'], how='left', indicator=True)
+
+    pitstop_laps = merged_df[merged_df['_merge'] == 'both']
+
+    next_lap_laps = pitstop_laps.copy()
+    next_lap_laps['lap'] += 1
+
+    laps_to_remove = pd.concat([pitstop_laps[['raceId', 'driverId', 'lap']], next_lap_laps[['raceId', 'driverId', 'lap']]]).drop_duplicates()
+
+    lap_times_no_pitstops = pd.merge(merged_df, laps_to_remove, on=['raceId', 'driverId', 'lap'], how='left', indicator='remove_status')
+    lap_times_no_pitstops = lap_times_no_pitstops[lap_times_no_pitstops['remove_status'] != 'both']
+
+    lap_times_no_pitstops.reset_index(drop=True, inplace=True)
+    return lap_times_no_pitstops
+
+def calculateDriverStatistics(df, driver_names):
+    stats = df.groupby('driverId')['milliseconds'].agg(['mean', 'std']).reset_index()
+    stats = stats.join(driver_names, on='driverId')
+    stats[f'mean_time'] = stats['mean'].apply(convert_to_time_format)
+    stats[f'std_time'] = stats['std'].apply(convert_to_time_format)
+    return stats
