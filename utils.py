@@ -1,8 +1,8 @@
 import numpy as np
 import pandas as pd
 
-# %%
 def getFiles():
+    """Return a dictionary of file paths."""
     return {
         'circuits': 'archive/circuits.csv',
         'constructor_results': 'archive/constructor_results.csv',
@@ -20,8 +20,8 @@ def getFiles():
         'status': 'archive/status.csv'
     }
 
-# %%
 def getConstructorColours():
+    """Return a dictionary of constructor colors."""
     return {
         'Ferrari': '#E8002D',
         'Sauber': '#52E252',
@@ -35,27 +35,23 @@ def getConstructorColours():
         'Haas F1 Team': '#B6BABD',
     }
 
-# %%
-# Convert milliseconds to "minutes:seconds.milliseconds" format
 def convert_to_time_format(ms):
+    """Convert milliseconds to "minutes:seconds.milliseconds" format."""
     if pd.isna(ms):
         return 'N/A'
-    minutes = ms // 60000
-    seconds = (ms % 60000) // 1000
+    minutes, seconds = divmod(ms // 1000, 60)
     milliseconds = ms % 1000
     return f"{int(minutes)}:{int(seconds):02}.{int(milliseconds):03}"
 
-# %%
-# Convert lap times from "minutes:seconds" to milliseconds
-def convert_lap_time_to_milliseconds(lap_time_str):
-    if lap_time_str == r'\N':
-        return np.nan  # Return NaN for missing values
-    minutes, seconds = lap_time_str.split(':')
-    return (int(minutes) * 60 * 1000) + (float(seconds) * 1000)
+def convert_lap_time_to_ms(lap_time):
+    """Convert lap time from "minutes:seconds" format to milliseconds."""
+    if pd.isna(lap_time) or lap_time == r'\N':
+        return np.nan  # Return NaN for missing or invalid values
+    mins, secs = lap_time.split(':')
+    return int(mins) * 60 * 1000 + float(secs) * 1000
 
-# %%
-# Function to format y-axis ticks for minutes and seconds
 def format_minutes(x, pos):
-    minutes = int(x)
-    seconds = (x - minutes) * 60
-    return f'{minutes:02}:{seconds:05.3f}'
+    """Format y-axis ticks for minutes and seconds."""
+    minutes, remainder = divmod(x, 1)
+    seconds = remainder * 60
+    return f'{int(minutes):02}:{seconds:05.3f}'

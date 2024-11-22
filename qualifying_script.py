@@ -1,91 +1,100 @@
-# %%
 # Load imports
 import pandas as pd
 import matplotlib.pyplot as plt
-from utils import getFiles, getConstructorColours, convert_to_time_format, convert_lap_time_to_milliseconds
+from utils import getFiles, getConstructorColours, convert_lap_time_to_ms
 
-# %%
 # Load the datasets
 files = getFiles()
 
 # Load all datasets into a dictionary
 data = {name: pd.read_csv(path) for name, path in files.items()}
 
-# %%
 # Define colors for constructors
 constructor_colors = getConstructorColours()
 
-# %%
-def get_qualifying_data(grand_prix_name, year, qualifying_sessions):
+def filterData(data, column, value):
+    """Filtering function to filter by any column."""
+    if value == 'all':
+        print(f"Returning all values for {column}.")
+        return data
+    if isinstance(value, list):
+        print(f"Filtering by values: {value} for {column}.")
+        return data[data[column].isin(value)]
+    print(f"Filtering by single value: {value} for {column}.")
+    return data[data[column] == value]
+
+def getQualiData(gp='all', year='all', sessions='all'):
+    """Retrieve qualifying data with filtering and necessary transformations."""
     # Merge qualifying data with race information
     races_info = data['races'][['raceId', 'name', 'year']]
-    qualifying_data = pd.merge(data['qualifying'], races_info, on='raceId')
+    quali_data = pd.merge(data['qualifying'], races_info, on='raceId')
     
-    # Check if the year exists in the dataset
-    if year not in qualifying_data['year'].values:
-        print(f"No qualifying data found for the year {year}.")
-        return None
-    
-    # Filter for the specified year and race (e.g., Bahrain GP)
-    qualifying_for_year = qualifying_data[qualifying_data['year'] == year]
-    qualifying_for_race = qualifying_for_year[qualifying_for_year['name'] == grand_prix_name]
+    # Filter by year, race
+    quali_data = filterData(quali_data, 'year', year)
+    quali_data = filterData(quali_data, 'name', gp)
 
     # If no data exists for the given race, handle this edge case
-    if qualifying_for_race.empty:
-        print(f"No data found for {grand_prix_name} in {year}.")
+    if quali_data.empty:
+        print(f"No data found for {gp} in {year}.")
         return None
 
     # Merge with drivers to get driver codes
-    driver_info = data['drivers'][['driverId', 'code']]
-    qualifying_with_drivers = pd.merge(qualifying_for_race, driver_info, on='driverId')
+    drivers = data['drivers'][['driverId', 'code']]
+    quali_with_drivers = pd.merge(quali_data, drivers, on='driverId')
 
-    # Ensure 'qualifying_sessions' is a list
-    if isinstance(qualifying_sessions, str):
-        qualifying_sessions = [qualifying_sessions]
+    if sessions == 'all':
+        sessions = ["q1", "q2", "q3"]
 
-    # Convert lap times for the specified sessions to milliseconds
-    for session in qualifying_sessions:
-        if session in qualifying_with_drivers.columns:
-            qualifying_with_drivers[f'{session}_ms'] = qualifying_with_drivers[session].apply(convert_lap_time_to_milliseconds)
-        else:
-            print(f"Session {session} not found in the data.")
+    # Filter valid sessions that exist in the data
+    valid_sessions = [session for session in sessions if session in quali_with_drivers.columns]
+    if not valid_sessions:
+        print("No valid qualifying sessions found.")
+        return None
 
+    # Convert lap times for the valid sessions to milliseconds
+    for session in valid_sessions:
+        quali_with_drivers[f'{session}_ms'] = quali_with_drivers[session].apply(convert_lap_time_to_ms)
+    
     # Collect session columns for which we have times in milliseconds
-    session_ms_columns = [f'{s}_ms' for s in ['q1', 'q2', 'q3'] if f'{s}_ms' in qualifying_with_drivers.columns]
+    session_ms_columns = [f'{s}_ms' for s in valid_sessions]
 
     if session_ms_columns:
         # Calculate the fastest lap time for each driver across the sessions
-        qualifying_with_drivers['fastest_lap_ms'] = qualifying_with_drivers[session_ms_columns].min(axis=1, skipna=True)
+        quali_with_drivers['fastest_lap_ms'] = quali_with_drivers[session_ms_columns].min(axis=1, skipna=True)
 
         # Convert fastest lap from milliseconds back to time format
-        qualifying_with_drivers['fastest_lap'] = qualifying_with_drivers['fastest_lap_ms'].apply(convert_to_time_format)
+        quali_with_drivers['fastest_lap'] = quali_with_drivers['fastest_lap_ms']
 
     # Merge with constructors data
-    constructor_info = data['constructors'][['constructorId', 'name']].rename(columns={'name': 'team_name'})
-    qualifying_with_teams = pd.merge(qualifying_with_drivers, constructor_info, on='constructorId')
+    constructors = data['constructors'][['constructorId', 'name']].rename(columns={'name': 'team_name'})
+    quali_with_teams = pd.merge(quali_with_drivers, constructors, on='constructorId')
 
     # Calculate the time difference from the fastest lap
-    qualifying_with_teams['time_diff_from_fastest'] = (qualifying_with_teams['fastest_lap_ms'] - qualifying_with_teams['fastest_lap_ms'].min()) / 6000
-    qualifying_with_teams = qualifying_with_teams.sort_values(by='time_diff_from_fastest')
+    quali_with_teams['time_diff'] = (quali_with_teams['fastest_lap_ms'] - quali_with_teams['fastest_lap_ms'].min()) / 6000
+    quali_with_teams = quali_with_teams.sort_values(by='time_diff')
 
     # Assign colors to teams
-    qualifying_with_teams['color'] = qualifying_with_teams['team_name'].map(constructor_colors)
+    quali_with_teams['color'] = quali_with_teams['team_name'].map(constructor_colors)
 
-    return qualifying_with_teams
+    return quali_with_teams
 
-# %%
-def plot_qualifying_drivers(qualifying_data):
-    # Set the plot style and figure size
+def plotQualiDrivers(quali_data):
+    """Plot time differences by driver."""
+    # Fill any missing colors with a default 'gray'
+    quali_data['color'].fillna('gray', inplace=True)
+    
     plt.style.use('dark_background')
     plt.figure(figsize=(12, 8))
     
-    # Plot horizontal bar chart for time difference from fastest lap
-    bars = plt.barh(qualifying_data['code'], qualifying_data['time_diff_from_fastest'], color=qualifying_data['color'])
+    # Plot driver time differences
+    bars = plt.barh(quali_data['code'], quali_data['time_diff'], color=quali_data['color'])
 
-    # Create legend for constructors based on team colors
-    legend_handles = [plt.Line2D([0], [0], color=color, lw=4) for color in constructor_colors.values()]
-    legend_labels = list(constructor_colors.keys())
-    plt.legend(legend_handles, legend_labels, title="Constructor")
+    # Create the legend based on the unique teams in the qualifying data
+    unique_teams = quali_data['team_name'].unique()
+    
+    # Map the unique team names to their respective colors
+    legend_handles = [plt.Line2D([0], [0], color=quali_data[quali_data['team_name'] == team]['color'].iloc[0], lw=4) for team in unique_teams]
+    plt.legend(legend_handles, unique_teams, title="Constructor")
 
     # Add axis labels and title
     plt.xlabel("Time Difference from Fastest (seconds)")
@@ -99,26 +108,26 @@ def plot_qualifying_drivers(qualifying_data):
     plt.tight_layout()
     plt.show()
 
-# %%
-def plot_time_diff_by_constructor(qualifying_data):
-    # Set the plot style and figure size
+
+def plotQualiConstructors(quali_data):
+    """Plot time differences by constructor."""
     plt.style.use('dark_background')
     plt.figure(figsize=(12, 8))
     
-    # Group data by constructor and calculate the minimum time difference for each constructor
-    constructor_time_diff = qualifying_data.groupby('team_name')['time_diff_from_fastest'].min().reset_index()
+    # Group by constructor and calculate minimum time difference
+    constructor_time_diff = quali_data.groupby('team_name')['time_diff'].min().reset_index()
+    constructor_time_diff = constructor_time_diff.sort_values(by='time_diff')
 
-    # Sort constructors by time difference for better visual representation
-    constructor_time_diff = constructor_time_diff.sort_values(by='time_diff_from_fastest')
+    # Plot constructor time differences
+    bars = plt.barh(constructor_time_diff['team_name'], constructor_time_diff['time_diff'], 
+                     color=constructor_time_diff['team_name'].map(lambda team: quali_data[quali_data['team_name'] == team]['color'].iloc[0]))
 
-    # Plot horizontal bar chart for constructors' time difference from the fastest lap
-    bars = plt.barh(constructor_time_diff['team_name'], constructor_time_diff['time_diff_from_fastest'], 
-                     color=constructor_time_diff['team_name'].map(constructor_colors))
-
-    # Create legend for constructors based on team colors
-    legend_handles = [plt.Line2D([0], [0], color=color, lw=4) for color in constructor_colors.values()]
-    legend_labels = list(constructor_colors.keys())
-    plt.legend(legend_handles, legend_labels, title="Constructor")
+    # Create the legend based on the unique teams in the qualifying data
+    unique_teams = constructor_time_diff['team_name'].unique()
+    
+    # Map the unique team names to their respective colors
+    legend_handles = [plt.Line2D([0], [0], color=quali_data[quali_data['team_name'] == team]['color'].iloc[0], lw=4) for team in unique_teams]
+    plt.legend(legend_handles, unique_teams, title="Constructor")
 
     # Add axis labels and title
     plt.xlabel("Time Difference from Fastest (seconds)")
@@ -131,5 +140,3 @@ def plot_time_diff_by_constructor(qualifying_data):
 
     plt.tight_layout()
     plt.show()
-
-
