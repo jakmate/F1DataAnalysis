@@ -99,10 +99,82 @@ class JolpicaF1API:
         cache_key = self._create_cache_key({'season': season, 'round': round})
         return self._make_request(f'{season}/{round}/qualifying', cache_key)
     
-    def getLaps(self, season: str = 'current', round: int = 0) -> Dict[str, Any]:
+    '''def getLaps(self, season: str = 'current', round: int = 0) -> Dict[str, Any]:
         """Public method with caching wrapper"""
         cache_key = self._create_cache_key({'season': season, 'round': round})
-        return self._make_request(f'{season}/{round}/laps', cache_key)
+        return self._make_request(f'{season}/{round}/laps', cache_key)'''
+    
+    def getLaps(self, season: str = 'current', round: int = 0) -> Dict[str, Any]:
+        """Get all laps with accurate progress tracking"""
+        all_laps = []
+        offset = 0
+        limit = 100  # API's max entries per request
+        num_drivers = 20  # Default, updated from actual data
+        total_unique_laps = 0
+
+        # Initial metadata request
+        init_response = self._make_request(
+            f'{season}/{round}/laps',
+            self._create_cache_key({'season': season, 'round': round, 'offset': 0, 'limit': 1})
+        )
+        
+        # Validate response structure
+        try:
+            race_data = init_response['MRData']['RaceTable']['Races'][0]
+            total_driver_entries = int(init_response['MRData']['total'])
+            num_drivers = len(race_data['Laps'][0]['Timings']) if race_data['Laps'] else 20
+            total_unique_laps = (total_driver_entries + num_drivers - 1) // num_drivers
+        except (KeyError, IndexError):
+            return init_response
+
+        laps_per_page = limit // num_drivers
+        total_pages = (total_unique_laps + laps_per_page - 1) // laps_per_page
+        
+        print(f"⏳ Fetching {total_unique_laps} race laps over {total_pages} pages")
+
+        while len(all_laps) < total_unique_laps:
+            page_num = (offset // limit) + 1
+            print(f"📄 Page {page_num}/{total_pages}...", end='\r')
+            
+            response = self._make_request(
+                f'{season}/{round}/laps',
+                self._create_cache_key({
+                    'season': season, 
+                    'round': round,
+                    'offset': offset,
+                    'limit': limit
+                })
+            )
+
+            # Extract new laps from response
+            try:
+                new_laps = response['MRData']['RaceTable']['Races'][0]['Laps']
+            except (KeyError, IndexError):
+                break
+
+            if not new_laps:
+                break
+
+            all_laps.extend(new_laps)
+            offset += limit
+            time.sleep(0.1)
+
+        # Trim to exact lap count
+        final_laps = all_laps[:total_unique_laps]
+        print(f"✅ Successfully fetched {len(final_laps)} race laps")
+        
+        return {
+            'MRData': {
+                **init_response['MRData'],
+                'total': str(len(final_laps) * num_drivers),
+                'RaceTable': {
+                    'Races': [{
+                        **race_data,
+                        'Laps': final_laps
+                    }]
+                }
+            }
+        }
     
     def getDrivers(self, season: str = 'current', round: int = 0) -> Dict[str, Any]:
         """Public method with caching wrapper"""
