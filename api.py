@@ -95,17 +95,15 @@ class JolpicaF1API:
         return {}
 
     def getQualifyingResults(self, season: str = 'current', round: int = 0) -> Dict[str, Any]:
-        """Public method with caching wrapper"""
         cache_key = self._create_cache_key({'season': season, 'round': round})
         return self._make_request(f'{season}/{round}/qualifying', cache_key)
     
-    '''def getLaps(self, season: str = 'current', round: int = 0) -> Dict[str, Any]:
-        """Public method with caching wrapper"""
+    def getRaceResults(self, season: str = 'current', round: int = 0) -> Dict[str, Any]:
         cache_key = self._create_cache_key({'season': season, 'round': round})
-        return self._make_request(f'{season}/{round}/laps', cache_key)'''
+        return self._make_request(f'{season}/{round}/results', cache_key)
     
     def getLaps(self, season: str = 'current', round: int = 0) -> Dict[str, Any]:
-        """Get all laps with accurate progress tracking"""
+        """Get all laps with progress tracking"""
         all_laps = []
         offset = 0
         limit = 100  # API's max entries per request
@@ -176,15 +174,38 @@ class JolpicaF1API:
             }
         }
     
+    def getDriverStandings(self, season: str = 'current', round: int = 0) -> Dict[str, Any]:
+        if round > 0:
+            cache_key = self._create_cache_key({'season': season, 'round': round})
+            return self._make_request(f'{season}/{round}/driverstandings', cache_key)
+        else:
+            cache_key = self._create_cache_key({'season': season})
+            return self._make_request(f'{season}/driverStandings', cache_key)
+    
+    def getConstructorStandings(self, season: str = 'current', round: int = 0) -> Dict[str, Any]:
+        if round > 0:
+            cache_key = self._create_cache_key({'season': season, 'round': round})
+            return self._make_request(f'{season}/{round}/constructorstandings', cache_key)
+        else:
+            cache_key = self._create_cache_key({'season': season})
+            return self._make_request(f'{season}/constructorstandings', cache_key)
+
     def getDrivers(self, season: str = 'current', round: int = 0) -> Dict[str, Any]:
-        """Public method with caching wrapper"""
         cache_key = self._create_cache_key({'season': season, 'round': round})
         return self._make_request(f'{season}/{round}/driverstandings', cache_key)
     
     def getPitstops(self, season: str = 'current', round: int = 0) -> Dict[str, Any]:
-        """Public method with caching wrapper"""
         cache_key = self._create_cache_key({'season': season, 'round': round})
         return self._make_request(f'{season}/{round}/pitstops', cache_key)
+    
+    def getRaceInfo(self, season: str = 'current', round: int = 0) -> Dict[str, Any]:
+        """Get race information including official race name"""
+        if round > 0:
+            cache_key = self._create_cache_key({'season': season, 'round': round})
+            return self._make_request(f'{season}/{round}/races', cache_key)
+        else:
+            cache_key = self._create_cache_key({'season': season})
+            return self._make_request(f'{season}/races', cache_key)
 
     def _handle_rate_limit_error(self, response: requests.Response) -> float:
         """Extract retry time from headers"""
