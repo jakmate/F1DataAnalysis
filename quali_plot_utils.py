@@ -1,22 +1,22 @@
 import matplotlib.pyplot as plt
 
-def plotQualiDrivers(qualiData):
+def plot_quali_drivers(quali_data):
     """Plot time differences by driver."""
     # Fill any missing colors with a default 'gray'
-    qualiData['color'].fillna('gray', inplace=True)
+    quali_data['color'].fillna('gray', inplace=True)
     
     plt.style.use('dark_background')
     plt.figure(figsize=(12, 8))
     
     # Plot driver time differences
-    bars = plt.barh(qualiData['Driver_code'], qualiData['timeDiff'], color=qualiData['color'])
+    plt.barh(quali_data['Driver_code'], quali_data['timeDiff'], color=quali_data['color'])
 
     # Create the legend based on the unique teams in the qualifying data
-    uniqueTeams = qualiData['Constructor_name'].unique()
+    unique_teams = quali_data['Constructor_name'].unique()
     
     # Map the unique team names to their respective colors
-    legend_handles = [plt.Line2D([0], [0], color=qualiData[qualiData['Constructor_name'] == team]['color'].iloc[0], lw=4) for team in uniqueTeams]
-    plt.legend(legend_handles, uniqueTeams, title="Constructor")
+    legend_handles = [plt.Line2D([0], [0], color=quali_data[quali_data['Constructor_name'] == team]['color'].iloc[0], lw=4) for team in unique_teams]
+    plt.legend(legend_handles, unique_teams, title="Constructor")
 
     # Add axis labels and title
     plt.xlabel("Time Difference from Fastest (seconds)")
@@ -31,25 +31,25 @@ def plotQualiDrivers(qualiData):
     plt.show()
 
 
-def plotQualiConstructors(qualiData):
+def plot_quali_constructors(quali_data):
     """Plot time differences by constructor."""
     plt.style.use('dark_background')
     plt.figure(figsize=(12, 8))
     
     # Group by constructor and calculate minimum time difference
-    constructorTimeDiff = qualiData.groupby('Constructor_name')['timeDiff'].min().reset_index()
-    constructorTimeDiff = constructorTimeDiff.sort_values(by='timeDiff')
+    constructor_time_diff = quali_data.groupby('Constructor_name')['timeDiff'].min().reset_index()
+    constructor_time_diff = constructor_time_diff.sort_values(by='timeDiff')
 
     # Plot constructor time differences
-    bars = plt.barh(constructorTimeDiff['Constructor_name'], constructorTimeDiff['timeDiff'], 
-                     color=constructorTimeDiff['Constructor_name'].map(lambda team: qualiData[qualiData['Constructor_name'] == team]['color'].iloc[0]))
+    plt.barh(constructor_time_diff['Constructor_name'], constructor_time_diff['timeDiff'], 
+                     color=constructor_time_diff['Constructor_name'].map(lambda team: quali_data[quali_data['Constructor_name'] == team]['color'].iloc[0]))
 
     # Create the legend based on the unique teams in the qualifying data
-    uniqueTeams = constructorTimeDiff['Constructor_name'].unique()
+    unique_teams = constructor_time_diff['Constructor_name'].unique()
     
     # Map the unique team names to their respective colors
-    legend_handles = [plt.Line2D([0], [0], color=qualiData[qualiData['Constructor_name'] == team]['color'].iloc[0], lw=4) for team in uniqueTeams]
-    plt.legend(legend_handles, uniqueTeams, title="Constructor")
+    legend_handles = [plt.Line2D([0], [0], color=quali_data[quali_data['Constructor_name'] == team]['color'].iloc[0], lw=4) for team in unique_teams]
+    plt.legend(legend_handles, unique_teams, title="Constructor")
 
     # Add axis labels and title
     plt.xlabel("Time Difference from Fastest (seconds)")
